@@ -271,15 +271,15 @@ st.markdown(
   <p class="gb-hero-copy">Discover simple activities. Reconnect with nature. Make every break count.</p>
   <div class="gb-tagline">🍃 Less scrolling. More exploring. More living.</div>
 </div>
-<div class="gb-trust">🛡️ Powered by local AI · Your activity history stays on your device</div>
+<div class="gb-trust">🛡️ Powered by local AI · Activity history may reset when the app restarts</div>
 """,
     unsafe_allow_html=True,
 )
 
 # ---------------- CONFIG ----------------
 HISTORY_FILE = Path(__file__).parent / "activity_history.json"
-OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL_NAME = "qwen2.5:3b"
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+MODEL_NAME = "openai/gpt-oss-20b"
 MAX_ATTEMPTS = 3
 
 
@@ -516,13 +516,44 @@ Keep the response friendly, practical, and concise. Return only the activity pla
                         + "\nGenerate a different activity following every rule.\n"
                     )
                 try:
+                    # Never put the API key in source code. Store it in Streamlit Secrets.
+                    api_key = st.secrets.get("GROQ_API_KEY", "")
+                    if not api_key:
+                        last_error = "Missing GROQ_API_KEY. Add it in Streamlit app Settings → Secrets."
+                        break
+
                     response = requests.post(
-                        OLLAMA_URL,
-                        json={"model": MODEL_NAME, "prompt": base_prompt + retry_context, "stream": False},
-                        timeout=180,
+                        GROQ_URL,
+                        headers={
+                            "Authorization": f"Bearer {api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": MODEL_NAME,
+                            "messages": [
+                                {
+                                    "role": "system",
+                                    "content": (
+                                        "You are GreenBuddy, a friendly assistant that suggests "
+                                        "safe, practical, age-appropriate nature activities. "
+                                        "Follow the requested output format exactly."
+                                    ),
+                                },
+                                {"role": "user", "content": base_prompt + retry_context},
+                            ],
+                            "temperature": 0.7,
+                            "max_tokens": 700,
+                        },
+                        timeout=90,
                     )
+                    if response.status_code in (401, 403):
+                        last_error = "Groq authentication failed. Check GROQ_API_KEY in Streamlit Secrets."
+                        break
+                    if response.status_code == 429:
+                        last_error = "Groq API quota/rate limit reached. Wait and try again."
+                        break
                     response.raise_for_status()
-                    activity = str(response.json().get("response", "")).strip()
+                    activity = str(response.json()["choices"][0]["message"]["content"]).strip()
                     if not activity:
                         last_error = "The AI returned an empty response."
                         continue
@@ -626,7 +657,7 @@ if st.session_state.current_activity:
 
 # ---------------- ACTIVITY MEMORY DASHBOARD ----------------
 st.markdown("## 📚 Your activity memory")
-st.markdown("Your completed activities, saved locally on this device.")
+st.markdown("Completed activities are kept in this app session and may reset when the app restarts.")
 
 valid_history = [
     item for item in st.session_state.history
@@ -687,6 +718,6 @@ else:
 
 st.divider()
 st.markdown(
-    '<div style="text-align:center;color:#668571;font-size:.86rem;padding:.5rem 0 1rem;">Made with 💚 and local AI · Take a break, step outside, and explore.</div>',
+    '<div style="text-align:center;color:#668571;font-size:.86rem;padding:.5rem 0 1rem;">Made with 💚 and hosted AI · Take a break, step outside, and explore.</div>',
     unsafe_allow_html=True,
 )
