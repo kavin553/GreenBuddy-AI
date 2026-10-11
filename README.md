@@ -19,6 +19,16 @@
 
 ---
 
+## 🌱 Live Demo
+
+Try GreenBuddy AI here:
+
+👉 https://greenbuddy-ai-kxqx3wshurh5ggzjx9nb4v.streamlit.app/
+
+## 💻 Source Code
+
+GitHub Repository: https://github.com/kavin553/GreenBuddy-AI
+
 ## 🍀 About the Project
 
 **GreenBuddy AI** is a local AI-powered outdoor activity companion that recommends personalised nature-related and screen-free activities based on your available time, interests, and surroundings.
